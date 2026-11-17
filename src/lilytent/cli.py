@@ -46,27 +46,35 @@ def _export(part: Part | Compound, out_dir: Path, name: str, stl: bool = True) -
     print(f"  wrote {name}")
 
 
-def build(cfg: CaseConfig, out_dir: Path, include_reference: bool = True) -> None:
+def build(cfg: CaseConfig, out_dir: Path, include_reference: bool = True, include_tent: bool = True) -> None:
+    if not (include_reference or include_tent):
+        raise ValueError("nothing to build: --no-reference and --no-tent were both given")
     out_dir.mkdir(parents=True, exist_ok=True)
-    layout = solve_layout(cfg)
-    print(describe(cfg, layout))
-    print(f"\nExporting to {out_dir}/")
 
-    case_left = tented_case(cfg, layout)
-    flap_left = flap(cfg, layout)
-    parts: dict[str, Part] = {"tented_case": case_left, "flap": flap_left}
+    parts: dict[str, Part] = {}
+    preview: Compound | None = None
+    if include_tent:
+        layout = solve_layout(cfg)
+        print(describe(cfg, layout), end="\n\n")
+        parts["tented_case"] = tented_case(cfg, layout)
+        parts["flap"] = flap(cfg, layout)
+        # Not for printing: the left half posed on the desk, to check the result by eye.
+        preview = Compound(
+            label="tented_preview",
+            children=[
+                stand_on_desk(parts["tented_case"], layout),
+                stand_on_desk(open_flap(parts["flap"], layout), layout),
+            ],
+        )
     if include_reference:
         parts["reference_case"] = reference_case(cfg)
+
+    print(f"Exporting to {out_dir}/")
     for name, left in parts.items():
         _export(left, out_dir, f"{name}_left")
         _export(mirror(left, Plane.YZ), out_dir, f"{name}_right")
-
-    # Not for printing: the left half posed on the desk, to check the result by eye.
-    posed = Compound(
-        label="tented_preview",
-        children=[stand_on_desk(case_left, layout), stand_on_desk(open_flap(flap_left, layout), layout)],
-    )
-    _export(posed, out_dir, "preview_tented_left", stl=False)
+    if preview is not None:
+        _export(preview, out_dir, "preview_tented_left", stl=False)
 
 
 VIEWS = ("tented", "closed", "parts", "reference")
@@ -109,6 +117,7 @@ def main() -> None:
         if name == "build":
             p.add_argument("--out", type=Path, default=Path("out"), help="output directory (default: out)")
             p.add_argument("--no-reference", action="store_true", help="skip the stock (untented) case")
+            p.add_argument("--no-tent", action="store_true", help="only the stock case: skip the tented case and flap")
         if name == "view":
             p.add_argument("what", nargs="?", choices=VIEWS, default="tented", help="what to show (default: tented)")
             p.add_argument("--port", type=int, help="viewer port, if not the one OCP CAD Viewer picks by default")
@@ -123,6 +132,6 @@ def main() -> None:
         elif args.command == "view":
             view(cfg, args.what, args.port)
         else:
-            build(cfg, args.out, include_reference=not args.no_reference)
+            build(cfg, args.out, include_reference=not args.no_reference, include_tent=not args.no_tent)
     except ValueError as err:
         parser.exit(1, f"error: {err}\n")

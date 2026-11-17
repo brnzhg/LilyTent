@@ -6,6 +6,7 @@ with a built-in, fold-flat tenting flap. Modelled in [build123d](https://build12
 ```
 uv run lilytent build                  # writes STEP + STL files to out/
 uv run lilytent build --tent-angle 30  # same, at a different tent angle
+uv run lilytent build --no-tent        # only the stock-style case, no flap or thick bottom
 uv run lilytent info                   # just print the geometry and hardware list
 uv run lilytent view                   # show it in OCP CAD Viewer (see below)
 uv run pytest
